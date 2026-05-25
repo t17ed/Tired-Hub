@@ -1,224 +1,179 @@
+--// SERVICES
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+local character = player.Character or player.CharacterAdded:Wait()
 
--- STATE
-local enabled = false
-local SPEED = 30.4
+--// SETTINGS
+local cubeEnabled = false
+local spinSpeed = 6
+local targetWalkSpeed = 31.6
 
-local character, hrp, humanoid, sphere
-local gui, textbox
+--// UI
+local gui = Instance.new("ScreenGui")
+gui.Name = "CubeControlUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
-local yaw, pitch = 0, 0
-local sensitivity = 0.0025
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 260, 0, 180)
+frame.Position = UDim2.new(0.05, 0, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(25, 0, 40)
+frame.BorderSizePixel = 0
+frame.Parent = gui
 
----------------------------------------------------
--- GUI
----------------------------------------------------
-local function createGUI()
-	if gui then gui:Destroy() end
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 12)
 
-	gui = Instance.new("ScreenGui")
-	gui.Name = "SphereGUI"
-	gui.ResetOnSpawn = false
-	gui.Parent = player:WaitForChild("PlayerGui")
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundTransparency = 1
+title.Text = "💜 Neon Cube Controller"
+title.TextColor3 = Color3.fromRGB(200, 120, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.Parent = frame
 
-	local frame = Instance.new("Frame")
-	frame.Size = UDim2.new(0, 220, 0, 120)
-	frame.Position = UDim2.new(0, 20, 0.5, -60)
-	frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
-	frame.BackgroundTransparency = 0.2
-	frame.Parent = gui
+--// TOGGLE BUTTON
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.new(0.9, 0, 0, 40)
+toggle.Position = UDim2.new(0.05, 0, 0.25, 0)
+toggle.BackgroundColor3 = Color3.fromRGB(120, 0, 180)
+toggle.Text = "Enable Neon Cube"
+toggle.TextColor3 = Color3.new(1,1,1)
+toggle.Font = Enum.Font.GothamBold
+toggle.TextSize = 14
+toggle.Parent = frame
+Instance.new("UICorner", toggle)
 
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1,0,0,30)
-	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.fromRGB(255,255,255)
-	label.Text = "Speed"
-	label.Parent = frame
+--// RESET BUTTON
+local reset = Instance.new("TextButton")
+reset.Size = UDim2.new(0.9, 0, 0, 35)
+reset.Position = UDim2.new(0.05, 0, 0.5, 0)
+reset.BackgroundColor3 = Color3.fromRGB(80, 0, 120)
+reset.Text = "Reset Character"
+reset.TextColor3 = Color3.new(1,1,1)
+reset.Font = Enum.Font.Gotham
+reset.TextSize = 13
+reset.Parent = frame
+Instance.new("UICorner", reset)
 
-	textbox = Instance.new("TextBox")
-	textbox.Size = UDim2.new(1, -10, 0, 40)
-	textbox.Position = UDim2.new(0, 5, 0, 40)
-	textbox.Text = tostring(SPEED)
-	textbox.TextScaled = true
-	textbox.BackgroundColor3 = Color3.fromRGB(35,35,35)
-	textbox.TextColor3 = Color3.fromRGB(255,255,255)
-	textbox.ClearTextOnFocus = false
-	textbox.Parent = frame
+--// SPEED INPUT
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(0.9, 0, 0, 30)
+speedBox.Position = UDim2.new(0.05, 0, 0.75, 0)
+speedBox.BackgroundColor3 = Color3.fromRGB(40, 0, 60)
+speedBox.Text = "31.6"
+speedBox.TextColor3 = Color3.new(1,1,1)
+speedBox.Font = Enum.Font.Gotham
+speedBox.TextSize = 13
+speedBox.PlaceholderText = "WalkSpeed"
+speedBox.Parent = frame
+Instance.new("UICorner", speedBox)
 
-	textbox.FocusLost:Connect(function()
-		local num = tonumber(textbox.Text)
-		if num then
-			SPEED = math.clamp(num, 1, 500)
-			textbox.Text = tostring(SPEED)
-		else
-			textbox.Text = tostring(SPEED)
-		end
-	end)
-end
+--// CUBE VARIABLES
+local cube
+local spinConn
 
----------------------------------------------------
--- CHARACTER SETUP
----------------------------------------------------
-local function setupCharacter(char)
-	character = char
-	hrp = char:WaitForChild("HumanoidRootPart")
-	humanoid = char:WaitForChild("Humanoid")
-
-	humanoid.PlatformStand = true
-	humanoid.AutoRotate = false
-	humanoid.CameraOffset = Vector3.new(0,5,0)
+local function makeCube(char)
+	local hrp = char:WaitForChild("HumanoidRootPart")
+	local humanoid = char:WaitForChild("Humanoid")
 
 	-- hide character
-	for _, v in ipairs(char:GetDescendants()) do
+	for _,v in pairs(char:GetChildren()) do
 		if v:IsA("BasePart") then
 			v.Transparency = 1
 			v.CanCollide = false
 		end
 	end
 
-	if sphere then sphere:Destroy() end
+	-- cube
+	cube = Instance.new("Part")
+	cube.Size = Vector3.new(4,4,4)
+	cube.Shape = Enum.PartType.Block
+	cube.Material = Enum.Material.Neon
+	cube.Color = Color3.fromRGB(170, 0, 255)
+	cube.Anchored = false
+	cube.CanCollide = false
+	cube.Name = "NeonCube"
+	cube.Parent = workspace
 
-	sphere = Instance.new("Part")
-	sphere.Shape = Enum.PartType.Ball
-	sphere.Size = Vector3.new(5,5,5)
-	sphere.Material = Enum.Material.Neon
-	sphere.Color = Color3.fromRGB(0,170,255)
-	sphere.Anchored = true
-	sphere.CanCollide = false
-	sphere.Parent = workspace
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = cube
+	weld.Part1 = hrp
+	weld.Parent = cube
 
-	sphere.CFrame = hrp.CFrame
+	cube.CFrame = hrp.CFrame
 
-	-- reset camera rotation
-	yaw, pitch = 0, 0
-end
-
----------------------------------------------------
--- NOCLIP (FORCE EVERY FRAME)
----------------------------------------------------
-local function noclip()
-	if not character then return end
-	for _, v in ipairs(character:GetDescendants()) do
-		if v:IsA("BasePart") then
-			v.CanCollide = false
+	-- spin effect
+	spinConn = RunService.RenderStepped:Connect(function(dt)
+		if cube and cube.Parent then
+			cube.CFrame = cube.CFrame * CFrame.Angles(0, math.rad(180 * dt * spinSpeed), 0)
 		end
-	end
-end
-
----------------------------------------------------
--- CAMERA ROTATION (MOUSE LOOK)
----------------------------------------------------
-UIS.InputChanged:Connect(function(input)
-	if not enabled then return end
-	if input.UserInputType == Enum.UserInputType.MouseMovement then
-		yaw -= input.Delta.X * sensitivity
-		pitch = math.clamp(pitch - input.Delta.Y * sensitivity, -1.5, 1.5)
-	end
-end)
-
----------------------------------------------------
--- WALL CHECK
----------------------------------------------------
-local function wallCheck(dir)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Blacklist
-	params.FilterDescendantsInstances = {character}
-
-	return workspace:Raycast(sphere.Position, dir * 3, params)
-end
-
----------------------------------------------------
--- ENABLE
----------------------------------------------------
-local function enable()
-	if enabled then return end
-	enabled = true
-
-	setupCharacter(player.Character or player.CharacterAdded:Wait())
-	createGUI()
-
-	camera.CameraType = Enum.CameraType.Scriptable
-	UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
-
-	RunService.RenderStepped:Connect(function(dt)
-		if not enabled then return end
-
-		noclip()
-
-		local camCF = CFrame.new(sphere.Position)
-			* CFrame.Angles(0, yaw, 0)
-			* CFrame.Angles(pitch, 0, 0)
-
-		camera.CFrame = camCF
-
-		local forward = camCF.LookVector
-		local right = camCF.RightVector
-
-		local move = humanoid.MoveDirection
-		local dir = forward * move.Z + right * move.X
-
-		if UIS:IsKeyDown(Enum.KeyCode.Space) then
-			dir += Vector3.new(0,1,0)
-		end
-		if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
-			dir += Vector3.new(0,-1,0)
-		end
-
-		if dir.Magnitude > 0 then dir = dir.Unit end
-
-		local hit = wallCheck(dir)
-		local speed = hit and 9 or SPEED
-
-		sphere.CFrame = sphere.CFrame + dir * speed * dt
 	end)
+
+	humanoid.WalkSpeed = targetWalkSpeed
 end
 
----------------------------------------------------
--- DISABLE
----------------------------------------------------
-local function disable()
-	enabled = false
+local function removeCube(char)
+	if spinConn then spinConn:Disconnect() end
+	if cube then cube:Destroy() end
 
-	if gui then gui:Destroy() gui = nil end
-	if sphere then sphere:Destroy() sphere = nil end
-
-	if character then
-		for _, v in ipairs(character:GetDescendants()) do
-			if v:IsA("BasePart") then
-				v.Transparency = 0
-				v.CanCollide = true
-			end
+	for _,v in pairs(char:GetChildren()) do
+		if v:IsA("BasePart") then
+			v.Transparency = 0
+			v.CanCollide = true
 		end
 	end
-
-	if humanoid then
-		humanoid.PlatformStand = false
-		humanoid.AutoRotate = true
-	end
-
-	camera.CameraType = Enum.CameraType.Custom
-	UIS.MouseBehavior = Enum.MouseBehavior.Default
 end
 
----------------------------------------------------
--- TOGGLE
----------------------------------------------------
-UIS.InputBegan:Connect(function(input, gp)
-	if gp then return end
-	if input.KeyCode == Enum.KeyCode.F then
-		if enabled then disable() else enable() end
+local function applySpeed(char)
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if hum then
+		local newSpeed = tonumber(speedBox.Text)
+		if newSpeed then
+			TweenService:Create(
+				hum,
+				TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{WalkSpeed = newSpeed}
+			):Play()
+		end
+	end
+end
+
+--// EVENTS
+toggle.MouseButton1Click:Connect(function()
+	character = player.Character or player.CharacterAdded:Wait()
+
+	cubeEnabled = not cubeEnabled
+
+	if cubeEnabled then
+		toggle.Text = "Disable Cube"
+		makeCube(character)
+	else
+		toggle.Text = "Enable Neon Cube"
+		removeCube(character)
 	end
 end)
 
-player.CharacterAdded:Connect(function()
-	task.wait(1)
-	if enabled then
-		disable()
-		enable()
+reset.MouseButton1Click:Connect(function()
+	player:LoadCharacter()
+end)
+
+speedBox.FocusLost:Connect(function()
+	if cubeEnabled then
+		applySpeed(character)
+	end
+end)
+
+--// auto reapply on respawn
+player.CharacterAdded:Connect(function(char)
+	character = char
+	task.wait(0.5)
+
+	if cubeEnabled then
+		makeCube(char)
 	end
 end)
