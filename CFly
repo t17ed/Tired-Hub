@@ -5,8 +5,21 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
+
+--// WAIT FOR PLAYERGUI (IMPORTANT FIX)
+local playerGui = player:WaitForChild("PlayerGui")
+
+--// CHARACTER SETUP
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp, humanoid
+
+local function setChar(char)
+	character = char
+	hrp = char:WaitForChild("HumanoidRootPart")
+	humanoid = char:WaitForChild("Humanoid")
+end
+
+setChar(character)
 
 --// STATE
 local cube
@@ -15,15 +28,19 @@ local savedPosition = nil
 local moveSpeed = 31.6
 local tweening = false
 
---// UI
+--////////////////////////////////////////////////////////
+--// UI (FORCED TO APPEAR)
+--////////////////////////////////////////////////////////
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "CubeSystemUI"
 gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
+gui.IgnoreGuiInset = true -- 🔥 ensures it doesn't get hidden by topbar
+gui.Parent = playerGui -- 🔥 FIX: guaranteed parenting
 
 local main = Instance.new("Frame")
 main.Size = UDim2.new(0, 260, 0, 220)
-main.Position = UDim2.new(0.05, 0, 0.25, 0)
+main.Position = UDim2.new(0, 20, 0.25, 0)
 main.BackgroundColor3 = Color3.fromRGB(25, 0, 40)
 main.BorderSizePixel = 0
 main.Parent = gui
@@ -38,72 +55,46 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 14
 title.Parent = main
 
---// TOGGLE CUBE
-local toggle = Instance.new("TextButton")
-toggle.Size = UDim2.new(0.9, 0, 0, 35)
-toggle.Position = UDim2.new(0.05, 0, 0.15, 0)
-toggle.Text = "Enable Cube"
-toggle.BackgroundColor3 = Color3.fromRGB(120, 0, 180)
-toggle.TextColor3 = Color3.new(1,1,1)
-toggle.Font = Enum.Font.GothamBold
-toggle.Parent = main
-Instance.new("UICorner", toggle)
+--// BUTTON MAKER (clean UI consistency)
+local function makeButton(text, y)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0.9, 0, 0, 30)
+	b.Position = UDim2.new(0.05, 0, y, 0)
+	b.Text = text
+	b.BackgroundColor3 = Color3.fromRGB(120, 0, 180)
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Font = Enum.Font.GothamBold
+	b.Parent = main
+	Instance.new("UICorner", b)
+	return b
+end
 
---// RESET
-local reset = Instance.new("TextButton")
-reset.Size = UDim2.new(0.9, 0, 0, 30)
-reset.Position = UDim2.new(0.05, 0, 0.33, 0)
-reset.Text = "Reset Character"
+--// UI ELEMENTS
+local toggle = makeButton("Enable Cube", 0.15)
+
+local reset = makeButton("Reset Character", 0.33)
 reset.BackgroundColor3 = Color3.fromRGB(80, 0, 120)
-reset.TextColor3 = Color3.new(1,1,1)
-reset.Font = Enum.Font.Gotham
-reset.Parent = main
-Instance.new("UICorner", reset)
 
---// SPEED BOX
 local speedBox = Instance.new("TextBox")
 speedBox.Size = UDim2.new(0.9, 0, 0, 30)
 speedBox.Position = UDim2.new(0.05, 0, 0.5, 0)
 speedBox.Text = "31.6"
-speedBox.PlaceholderText = "Move Speed"
 speedBox.BackgroundColor3 = Color3.fromRGB(40, 0, 60)
 speedBox.TextColor3 = Color3.new(1,1,1)
 speedBox.Font = Enum.Font.Gotham
 speedBox.Parent = main
 Instance.new("UICorner", speedBox)
 
---// SAVE POSITION
-local saveBtn = Instance.new("TextButton")
-saveBtn.Size = UDim2.new(0.9, 0, 0, 30)
-saveBtn.Position = UDim2.new(0.05, 0, 0.68, 0)
-saveBtn.Text = "Save Position"
+local saveBtn = makeButton("Save Position", 0.68)
 saveBtn.BackgroundColor3 = Color3.fromRGB(140, 0, 200)
-saveBtn.TextColor3 = Color3.new(1,1,1)
-saveBtn.Font = Enum.Font.GothamBold
-saveBtn.Parent = main
-Instance.new("UICorner", saveBtn)
 
---// LOAD POSITION
-local loadBtn = Instance.new("TextButton")
-loadBtn.Size = UDim2.new(0.9, 0, 0, 30)
-loadBtn.Position = UDim2.new(0.05, 0, 0.83, 0)
-loadBtn.Text = "Load Position"
+local loadBtn = makeButton("Load Position", 0.83)
 loadBtn.BackgroundColor3 = Color3.fromRGB(60, 0, 100)
-loadBtn.TextColor3 = Color3.new(1,1,1)
-loadBtn.Font = Enum.Font.GothamBold
-loadBtn.Parent = main
-Instance.new("UICorner", loadBtn)
 
---// SETUP CHARACTER
-local function setupChar(char)
-	character = char
-	hrp = char:WaitForChild("HumanoidRootPart")
-	humanoid = char:WaitForChild("Humanoid")
-end
+--////////////////////////////////////////////////////////
+--// CUBE SYSTEM
+--////////////////////////////////////////////////////////
 
-setupChar(character)
-
---// CUBE CREATION
 local function enableCube()
 	if cube then cube:Destroy() end
 
@@ -120,7 +111,6 @@ local function enableCube()
 	cube.Color = Color3.fromRGB(170, 0, 255)
 	cube.Anchored = false
 	cube.CanCollide = false
-	cube.Name = "Cube"
 	cube.Parent = workspace
 
 	local weld = Instance.new("WeldConstraint")
@@ -146,7 +136,9 @@ local function disableCube()
 	end
 end
 
---// NOCLIP LOOP
+--////////////////////////////////////////////////////////
+--// NOCLIP
+--////////////////////////////////////////////////////////
 RunService.Stepped:Connect(function()
 	if character then
 		for _,v in pairs(character:GetDescendants()) do
@@ -157,54 +149,60 @@ RunService.Stepped:Connect(function()
 	end
 end)
 
+--////////////////////////////////////////////////////////
 --// SPEED UPDATE
+--////////////////////////////////////////////////////////
 local function updateSpeed()
 	local s = tonumber(speedBox.Text)
 	if s then
 		moveSpeed = s
 		if humanoid then
-			TweenService:Create(
-				humanoid,
-				TweenInfo.new(0.3),
-				{WalkSpeed = moveSpeed}
-			):Play()
+			TweenService:Create(humanoid, TweenInfo.new(0.3), {
+				WalkSpeed = moveSpeed
+			}):Play()
 		end
 	end
 end
 
 speedBox.FocusLost:Connect(updateSpeed)
 
---// TWEEN TO POSITION (SPEED BASED)
-local function tweenToPosition(pos)
+--////////////////////////////////////////////////////////
+--// TWEEN MOVE SYSTEM
+--////////////////////////////////////////////////////////
+local function tweenTo(pos)
 	if not hrp or tweening then return end
 	tweening = true
 
 	local dist = (hrp.Position - pos).Magnitude
 	local duration = dist / math.max(moveSpeed, 1)
 
-	local tween = TweenService:Create(
+	local tw = TweenService:Create(
 		hrp,
 		TweenInfo.new(duration, Enum.EasingStyle.Linear),
 		{CFrame = CFrame.new(pos)}
 	)
 
-	tween:Play()
-	tween.Completed:Wait()
+	tw:Play()
+	tw.Completed:Wait()
 
 	tweening = false
 end
 
---// KEYBIND (F)
+--////////////////////////////////////////////////////////
+--// INPUT (F KEY)
+--////////////////////////////////////////////////////////
 UserInputService.InputBegan:Connect(function(input, gpe)
 	if gpe then return end
 	if input.KeyCode == Enum.KeyCode.F then
 		if savedPosition then
-			tweenToPosition(savedPosition)
+			tweenTo(savedPosition)
 		end
 	end
 end)
 
+--////////////////////////////////////////////////////////
 --// UI EVENTS
+--////////////////////////////////////////////////////////
 toggle.MouseButton1Click:Connect(function()
 	if cubeEnabled then
 		disableCube()
@@ -222,22 +220,24 @@ end)
 saveBtn.MouseButton1Click:Connect(function()
 	if hrp then
 		savedPosition = hrp.Position
-		saveBtn.Text = "Position Saved ✓"
-		task.wait(1)
+		saveBtn.Text = "Saved ✓"
+		task.wait(0.8)
 		saveBtn.Text = "Save Position"
 	end
 end)
 
 loadBtn.MouseButton1Click:Connect(function()
 	if savedPosition then
-		tweenToPosition(savedPosition)
+		tweenTo(savedPosition)
 	end
 end)
 
---// RESPAWN HANDLING
+--////////////////////////////////////////////////////////
+--// RESPAWN SUPPORT
+--////////////////////////////////////////////////////////
 player.CharacterAdded:Connect(function(char)
 	task.wait(0.5)
-	setupChar(char)
+	setChar(char)
 
 	if cubeEnabled then
 		enableCube()
