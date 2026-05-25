@@ -1,0 +1,141 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local enabled = false
+
+local SPEED_NORMAL = 30.4
+local SPEED_WALL = 9
+
+local character, humanoid, hrp
+local sphere
+local conn
+
+local function setupCharacter(char)
+	character = char
+	humanoid = char:WaitForChild("Humanoid")
+	hrp = char:WaitForChild("HumanoidRootPart")
+
+	-- Raise camera
+	humanoid.CameraOffset = Vector3.new(0, 4, 0)
+
+	-- Make character invisible
+	for _, v in ipairs(char:GetDescendants()) do
+		if v:IsA("BasePart") then
+			v.Transparency = 1
+			v.CanCollide = false
+		end
+	end
+
+	-- Create blue sphere
+	if sphere then sphere:Destroy() end
+	sphere = Instance.new("Part")
+	sphere.Shape = Enum.PartType.Ball
+	sphere.Size = Vector3.new(5, 5, 5)
+	sphere.Color = Color3.fromRGB(0, 170, 255)
+	sphere.Material = Enum.Material.Neon
+	sphere.Anchored = false
+	sphere.CanCollide = false
+	sphere.Massless = true
+	sphere.Parent = char
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = sphere
+	weld.Part1 = hrp
+	weld.Parent = sphere
+
+	sphere.CFrame = hrp.CFrame
+end
+
+local function isTouchingWall(dir)
+	if dir.Magnitude == 0 then return false end
+
+	local origin = hrp.Position
+	local result = workspace:Raycast(origin, dir.Unit * 3, RaycastParams.new())
+
+	return result ~= nil
+end
+
+local function enable()
+	if enabled then return end
+	enabled = true
+
+	setupCharacter(player.Character or player.CharacterAdded:Wait())
+
+	conn = RunService.RenderStepped:Connect(function(dt)
+		if not hrp or not humanoid then return end
+
+		local moveDir = humanoid.MoveDirection
+		local camCF = camera.CFrame
+
+		-- movement relative to camera
+		local forward = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z).Unit
+		local right = Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit
+
+		local dir = (forward * moveDir.Z + right * moveDir.X)
+		if dir.Magnitude > 1 then dir = dir.Unit end
+
+		local wall = isTouchingWall(dir)
+
+		local speed = wall and SPEED_WALL or SPEED_NORMAL
+
+		-- phase through walls when touching
+		for _, v in ipairs(character:GetDescendants()) do
+			if v:IsA("BasePart") then
+				v.CanCollide = not wall
+			end
+		end
+
+		hrp.CFrame = hrp.CFrame + dir * speed * dt
+	end)
+end
+
+local function disable()
+	if not enabled then return end
+	enabled = false
+
+	if conn then
+		conn:Disconnect()
+		conn = nil
+	end
+
+	if character then
+		for _, v in ipairs(character:GetDescendants()) do
+			if v:IsA("BasePart") then
+				v.Transparency = 0
+				v.CanCollide = true
+			end
+		end
+	end
+
+	if sphere then
+		sphere:Destroy()
+		sphere = nil
+	end
+
+	if humanoid then
+		humanoid.CameraOffset = Vector3.new(0, 0, 0)
+	end
+end
+
+UIS.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.F then
+		if enabled then
+			disable()
+		else
+			enable()
+		end
+	end
+end)
+
+player.CharacterAdded:Connect(function()
+	task.wait(1)
+	if enabled then
+		disable()
+		enable()
+	end
+end)
