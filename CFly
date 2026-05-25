@@ -5,76 +5,72 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- SETTINGS
 local enabled = false
 local SPEED = 30.4
 local WALL_SPEED = 9
 
 local character, hrp, humanoid
 local sphere
+
+local bv, att, align
+
 local gui
 
-local function createGUI()
+-- GUI
+local function makeGui()
 	if gui then gui:Destroy() end
 
 	gui = Instance.new("ScreenGui")
-	gui.Name = "SphereSettings"
 	gui.ResetOnSpawn = false
 	gui.Parent = player:WaitForChild("PlayerGui")
 
 	local frame = Instance.new("Frame")
-	frame.Size = UDim2.new(0, 220, 0, 140)
-	frame.Position = UDim2.new(0, 20, 0.5, -70)
-	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-	frame.BackgroundTransparency = 0.2
+	frame.Size = UDim2.new(0, 200, 0, 120)
+	frame.Position = UDim2.new(0, 20, 0.5, -60)
+	frame.BackgroundTransparency = 0.3
+	frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 	frame.Parent = gui
 
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, 0, 0, 30)
-	title.Text = "Sphere Settings"
-	title.TextColor3 = Color3.fromRGB(255,255,255)
-	title.BackgroundTransparency = 1
-	title.Parent = frame
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,0,0,30)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.new(1,1,1)
+	label.Text = "Speed: "..SPEED
+	label.Parent = frame
 
-	local speedLabel = Instance.new("TextLabel")
-	speedLabel.Size = UDim2.new(1, 0, 0, 25)
-	speedLabel.Position = UDim2.new(0, 0, 0, 35)
-	speedLabel.Text = "Speed: " .. SPEED
-	speedLabel.TextColor3 = Color3.fromRGB(200,200,200)
-	speedLabel.BackgroundTransparency = 1
-	speedLabel.Parent = frame
+	local up = Instance.new("TextButton")
+	up.Size = UDim2.new(0.5,-5,0,40)
+	up.Position = UDim2.new(0,5,0,40)
+	up.Text = "+"
 
-	local increase = Instance.new("TextButton")
-	increase.Size = UDim2.new(0.5, -5, 0, 40)
-	increase.Position = UDim2.new(0, 5, 0, 70)
-	increase.Text = "+ Speed"
-	increase.Parent = frame
+	up.Parent = frame
 
-	local decrease = Instance.new("TextButton")
-	decrease.Size = UDim2.new(0.5, -5, 0, 40)
-	decrease.Position = UDim2.new(0.5, 0, 0, 70)
-	decrease.Text = "- Speed"
-	decrease.Parent = frame
+	local down = Instance.new("TextButton")
+	down.Size = UDim2.new(0.5,-5,0,40)
+	down.Position = UDim2.new(0.5,0,0,40)
+	down.Text = "-"
+	down.Parent = frame
 
-	increase.MouseButton1Click:Connect(function()
+	up.MouseButton1Click:Connect(function()
 		SPEED += 5
-		speedLabel.Text = "Speed: " .. SPEED
+		label.Text = "Speed: "..SPEED
 	end)
 
-	decrease.MouseButton1Click:Connect(function()
+	down.MouseButton1Click:Connect(function()
 		SPEED = math.max(1, SPEED - 5)
-		speedLabel.Text = "Speed: " .. SPEED
+		label.Text = "Speed: "..SPEED
 	end)
 end
 
-local function setupCharacter(char)
+-- character setup
+local function setup(char)
 	character = char
-	humanoid = char:WaitForChild("Humanoid")
 	hrp = char:WaitForChild("HumanoidRootPart")
+	humanoid = char:WaitForChild("Humanoid")
 
-	humanoid.CameraOffset = Vector3.new(0, 5, 0)
+	humanoid.CameraOffset = Vector3.new(0,5,0)
 
-	for _, v in ipairs(char:GetDescendants()) do
+	for _,v in pairs(char:GetDescendants()) do
 		if v:IsA("BasePart") then
 			v.Transparency = 1
 			v.CanCollide = false
@@ -86,11 +82,10 @@ local function setupCharacter(char)
 	sphere = Instance.new("Part")
 	sphere.Shape = Enum.PartType.Ball
 	sphere.Size = Vector3.new(5,5,5)
-	sphere.Material = Enum.Material.Neon
 	sphere.Color = Color3.fromRGB(0,170,255)
-	sphere.Anchored = false
+	sphere.Material = Enum.Material.Neon
 	sphere.CanCollide = false
-	sphere.Massless = true
+	sphere.Anchored = false
 	sphere.Parent = workspace
 
 	local weld = Instance.new("WeldConstraint")
@@ -99,64 +94,75 @@ local function setupCharacter(char)
 	weld.Parent = sphere
 
 	sphere.CFrame = hrp.CFrame
+
+	-- physics controller
+	att = Instance.new("Attachment", sphere)
+
+	bv = Instance.new("BodyVelocity")
+	bv.MaxForce = Vector3.new(1e9,1e9,1e9)
+	bv.Velocity = Vector3.zero
+	bv.Parent = sphere
+
+	align = Instance.new("AlignOrientation")
+	align.Attachment0 = att
+	align.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	align.RigidityEnabled = true
+	align.MaxTorque = math.huge
+	align.Parent = sphere
 end
 
-local function isWall(dir)
-	if dir.Magnitude == 0 then return false end
-
+local function wallCheck(dir)
 	local params = RaycastParams.new()
 	params.FilterDescendantsInstances = {character}
 	params.FilterType = Enum.RaycastFilterType.Blacklist
 
-	local result = workspace:Raycast(hrp.Position, dir.Unit * 3, params)
-	return result ~= nil
+	return workspace:Raycast(hrp.Position, dir * 3, params)
 end
 
+-- toggle
 local function enable()
 	if enabled then return end
 	enabled = true
 
-	setupCharacter(player.Character or player.CharacterAdded:Wait())
-	createGUI()
+	setup(player.Character or player.CharacterAdded:Wait())
+	makeGui()
 
-	RunService.RenderStepped:Connect(function(dt)
+	RunService.RenderStepped:Connect(function()
+		if not enabled then return end
 		if not hrp then return end
 
-		local moveDir = humanoid.MoveDirection
-		local camCF = camera.CFrame
+		local cam = camera.CFrame
 
-		local forward = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z).Unit
-		local right = Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit
+		local forward = Vector3.new(cam.LookVector.X,0,cam.LookVector.Z).Unit
+		local right = Vector3.new(cam.RightVector.X,0,cam.RightVector.Z).Unit
 
-		local dir = forward * moveDir.Z + right * moveDir.X
-		if dir.Magnitude > 1 then dir = dir.Unit end
+		local move = humanoid.MoveDirection
+		local dir = forward * move.Z + right * move.X
 
-		local wall = isWall(dir)
+		-- vertical flight
+		if UIS:IsKeyDown(Enum.KeyCode.Space) then
+			dir += Vector3.new(0,1,0)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
+			dir += Vector3.new(0,-1,0)
+		end
 
-		-- noclip when needed
-		for _, v in ipairs(character:GetDescendants()) do
+		if dir.Magnitude > 0 then dir = dir.Unit end
+
+		local hit = wallCheck(dir)
+
+		-- noclip when pushing into wall
+		for _,v in pairs(character:GetDescendants()) do
 			if v:IsA("BasePart") then
-				v.CanCollide = not wall
+				v.CanCollide = not hit
 			end
 		end
 
-		local speed = wall and WALL_SPEED or SPEED
+		local speed = hit and WALL_SPEED or SPEED
 
-		-- FLIGHT HEIGHT CONTROL (W/S up/down)
-		if UIS:IsKeyDown(Enum.KeyCode.Space) then
-			dir += Vector3.new(0, 1, 0)
-		end
-		if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
-			dir += Vector3.new(0, -1, 0)
-		end
+		bv.Velocity = dir * speed
 
-		if dir.Magnitude > 0 then
-			dir = dir.Unit
-		end
-
-		hrp.CFrame = hrp.CFrame + dir * speed * dt
-
-		camera.CFrame = CFrame.new(hrp.Position + Vector3.new(0, 6, 12), hrp.Position)
+		camera.CFrame = CFrame.new(sphere.Position + Vector3.new(0,6,12), sphere.Position)
 	end)
 end
 
@@ -164,11 +170,10 @@ local function disable()
 	enabled = false
 
 	if gui then gui:Destroy() gui = nil end
-
 	if sphere then sphere:Destroy() sphere = nil end
 
 	if character then
-		for _, v in ipairs(character:GetDescendants()) do
+		for _,v in pairs(character:GetDescendants()) do
 			if v:IsA("BasePart") then
 				v.Transparency = 0
 				v.CanCollide = true
@@ -177,18 +182,14 @@ local function disable()
 	end
 
 	if humanoid then
-		humanoid.CameraOffset = Vector3.new(0,0,0)
+		humanoid.CameraOffset = Vector3.zero
 	end
 end
 
-UIS.InputBegan:Connect(function(input, gp)
+UIS.InputBegan:Connect(function(input,gp)
 	if gp then return end
 	if input.KeyCode == Enum.KeyCode.F then
-		if enabled then
-			disable()
-		else
-			enable()
-		end
+		if enabled then disable() else enable() end
 	end
 end)
 
