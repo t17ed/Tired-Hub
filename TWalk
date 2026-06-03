@@ -1,0 +1,125 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+-- Wait for character
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Camera offset
+humanoid.CameraOffset = Vector3.new(0, 10, 0)
+
+-- Teleport distance
+local teleportDistance = 10
+local minDistance = 1
+local maxDistance = 100
+
+-- Create GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "TeleportWalkGUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 320, 0, 90)
+frame.Position = UDim2.new(0.5, -160, 1, -120)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = frame
+
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, 0, 0, 30)
+label.BackgroundTransparency = 1
+label.Text = "Teleport Distance: "..teleportDistance
+label.TextColor3 = Color3.new(1,1,1)
+label.TextScaled = true
+label.Font = Enum.Font.GothamBold
+label.Parent = frame
+
+local sliderBar = Instance.new("Frame")
+sliderBar.Size = UDim2.new(0, 260, 0, 10)
+sliderBar.Position = UDim2.new(0.5, -130, 0, 55)
+sliderBar.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+sliderBar.BorderSizePixel = 0
+sliderBar.Parent = frame
+
+local barCorner = Instance.new("UICorner")
+barCorner.CornerRadius = UDim.new(1,0)
+barCorner.Parent = sliderBar
+
+local knob = Instance.new("Frame")
+knob.Size = UDim2.new(0, 20, 0, 20)
+knob.Position = UDim2.new(0.1, -10, 0.5, -10)
+knob.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+knob.BorderSizePixel = 0
+knob.Parent = sliderBar
+
+local knobCorner = Instance.new("UICorner")
+knobCorner.CornerRadius = UDim.new(1,0)
+knobCorner.Parent = knob
+
+local dragging = false
+
+local function updateSlider(mouseX)
+	local barX = sliderBar.AbsolutePosition.X
+	local barWidth = sliderBar.AbsoluteSize.X
+
+	local percent = math.clamp((mouseX - barX) / barWidth, 0, 1)
+
+	knob.Position = UDim2.new(percent, -10, 0.5, -10)
+
+	teleportDistance = math.floor(
+		minDistance + ((maxDistance - minDistance) * percent)
+	)
+
+	label.Text = "Teleport Distance: "..teleportDistance
+end
+
+knob.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+	end
+end)
+
+sliderBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		updateSlider(input.Position.X)
+		dragging = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		updateSlider(input.Position.X)
+	end
+end)
+
+-- Reapply camera offset after respawn
+player.CharacterAdded:Connect(function(char)
+	character = char
+	humanoid = char:WaitForChild("Humanoid")
+	humanoid.CameraOffset = Vector3.new(0, 10, 0)
+end)
+
+-- Teleport walk
+RunService.RenderStepped:Connect(function()
+	if character and humanoid and humanoid.MoveDirection.Magnitude > 0 then
+		local root = character:FindFirstChild("HumanoidRootPart")
+
+		if root then
+			root.CFrame = root.CFrame + (humanoid.MoveDirection * teleportDistance)
+		end
+	end
+end)
