@@ -345,12 +345,12 @@ local function runSequence()
 	setCharacterVisible(false)
 	flingCube(cube, endPos, 3, animalModel, MODEL_OFFSET_Y)
 
-	showNotification("Beans " .. animalName)
+	showNotification("You Stole " .. animalName)
 
 	if animalModel then animalModel:Destroy() end
 
-	task.wait(0.02)
-	player:Kick("Beans " .. animalName)
+	task.wait(0.4)
+	player:Kick("You Stole... " .. animalName)
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -375,4 +375,4 @@ player.CharacterAdded:Connect(function(char)
 	updateBaseBeam()
 end)
 
-print("[Claude Test] Loaded — press Q to run the visual test sequence.")
+print("Pulsed Hub Loaded")
