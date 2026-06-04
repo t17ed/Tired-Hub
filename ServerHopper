@@ -8,8 +8,8 @@ local player = Players.LocalPlayer
 local rng = Random.new()
 
 local ANIMAL_NAMES = {
-	"Test Model 1", "Test Model 2", "Test Model 3", "Test Model 4",
-	"Test Model 5", "Test Model 6", "Test Model 7", "Test Model 8",
+	"Lavadorito Spinito", "Garama and Madundung", "Jolly Jolly Sahur", "Dragon Canneloni",
+	"Ventoliero Pavonero", "Burguro And Fryuro", "Capitano Moby", "Hydra Dragon Cannelloni",
 }
 
 local MODEL_OFFSET_Y = 4
