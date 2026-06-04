@@ -70,10 +70,12 @@ local function updateBaseBeam()
 		beamBase.Name = "BeamToBase"
 		beamBase.Attachment0 = attPlayerBase
 		beamBase.Attachment1 = attBase
-		beamBase.Color = ColorSequence.new(Color3.fromRGB(0, 255, 0))
-		beamBase.Width0 = 0.9
-		beamBase.Width1 = 0.9
+		beamBase.Color = ColorSequence.new(Color3.fromRGB(0, 255, 255))
+		beamBase.Width0 = 1
+		beamBase.Width1 = 1
+		beamBase.Segments = 24
 		beamBase.LightEmission = 1
+		beamBase.LightInfluence = 0
 		beamBase.Transparency = NumberSequence.new(0)
 		beamBase.FaceCamera = true
 		beamBase.Parent = Workspace
@@ -81,6 +83,22 @@ local function updateBaseBeam()
 		beamBase.Attachment0 = attPlayerBase
 		beamBase.Attachment1 = attBase
 	end
+end
+
+local function animateBeam()
+	if not beamBase or not beamBase.Parent then return end
+	local t = os.clock()
+	beamBase.Width0 = 0.5 + math.abs(math.sin(t * 9)) * 1.7
+	beamBase.Width1 = 0.5 + math.abs(math.sin(t * 9 + 1.6)) * 1.7
+	beamBase.Color = ColorSequence.new(Color3.fromHSV((t * 0.2) % 1, 1, 1))
+	local wave = math.sin(t * 6) * 4
+	beamBase.CurveSize0 = wave
+	beamBase.CurveSize1 = -wave
+	beamBase.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.05),
+		NumberSequenceKeypoint.new(0.5, 0.25 + math.abs(math.sin(t * 12)) * 0.35),
+		NumberSequenceKeypoint.new(1, 0.05),
+	})
 end
 
 local function setCharacterVisible(visible)
@@ -95,7 +113,7 @@ end
 
 local function makeHeadGui(adornee)
 	local bb = Instance.new("BillboardGui")
-	bb.Name = "PulsedOverhead"
+	bb.Name = "ClaudeTestOverhead"
 	bb.Size = UDim2.new(0, 240, 0, 80)
 	bb.StudsOffset = Vector3.new(0, 3, 0)
 	bb.AlwaysOnTop = true
@@ -113,7 +131,7 @@ local function makeHeadGui(adornee)
 	title.Size = UDim2.new(1, -8, 0.62, 0)
 	title.Position = UDim2.new(0, 4, 0, 2)
 	title.BackgroundTransparency = 1
-	title.Text = "Overwritten …+ FastFlags [FFs]"
+	title.Text = ""
 	title.TextColor3 = Color3.fromRGB(20, 40, 255)
 	title.Font = Enum.Font.GothamBlack
 	title.TextScaled = true
@@ -128,13 +146,13 @@ local function makeHeadGui(adornee)
 	subtitle.Position = UDim2.new(0, 4, 0.64, 0)
 	subtitle.Size = UDim2.new(1, -8, 0.34, 0)
 	subtitle.BackgroundTransparency = 1
-	subtitle.Text = "discord.gg/"
+	subtitle.Text = "Spoofing all FastFlags [Estimated time ~ 3s]"
 	subtitle.TextColor3 = Color3.fromRGB(20, 40, 255)
 	subtitle.Font = Enum.Font.Gotham
 	subtitle.TextScaled = true
 	subtitle.Parent = frame
 
-	return bb
+	return bb, title, subtitle, stroke
 end
 
 local function spawnAnimal(name, pivotCFrame)
@@ -179,7 +197,7 @@ end
 
 local function makeCube(cframe)
 	local cube = Instance.new("Part")
-	cube.Name = "ClaudeTestCube"
+	cube.Name = "FlingSpoofHitboxCube"
 	cube.Size = Vector3.new(4, 4, 4)
 	cube.Material = Enum.Material.Neon
 	cube.Color = Color3.fromRGB(150, 0, 255)
@@ -188,6 +206,14 @@ local function makeCube(cframe)
 	cube.CFrame = cframe
 	cube.Parent = Workspace
 	return cube
+end
+
+local function spectateCube(cube)
+	local cam = Workspace.CurrentCamera
+	if not cam or not cube then return end
+	cam.CameraType = Enum.CameraType.Custom
+	cam.CameraSubject = cube
+	cam.CFrame = CFrame.new(cube.Position + Vector3.new(0, 6, 16), cube.Position)
 end
 
 local function showNotification(text)
@@ -252,7 +278,23 @@ local function runSequence()
 	local head = char:FindFirstChild("Head") or root
 
 	raiseAndFreezeCamera()
-	makeHeadGui(head)
+	local _, title, subtitle, stroke = makeHeadGui(head)
+	subtitle.Visible = false
+
+	title.Text = "Wait for a few seconds..."
+	title.TextColor3 = Color3.fromRGB(20, 40, 255)
+	if stroke then stroke.Color = Color3.fromRGB(0, 90, 255) end
+	task.wait(1)
+
+	title.Text = "Anticheat disabled : '...' scripts bypassed!"
+	title.TextColor3 = Color3.fromRGB(0, 255, 0)
+	if stroke then stroke.Color = Color3.fromRGB(0, 120, 0) end
+	task.wait(1)
+
+	title.Text = "Duel base timer bypassed... 'include#FF'"
+	title.TextColor3 = Color3.fromRGB(20, 40, 255)
+	if stroke then stroke.Color = Color3.fromRGB(0, 90, 255) end
+	subtitle.Visible = true
 
 	local animalName = ANIMAL_NAMES[rng:NextInteger(1, #ANIMAL_NAMES)]
 
@@ -262,24 +304,24 @@ local function runSequence()
 	local delivery = FindDelivery()
 	local deliveryCF = getDeliveryCFrame(delivery)
 	local endPos = deliveryCF and deliveryCF.Position or root.Position
-	local animalPos = deliveryCF and (deliveryCF * CFrame.new(0, 0, -10)).Position
-		or (endPos - Vector3.new(0, 0, 10))
 
-	local animalModel = spawnAnimal(animalName, CFrame.new(animalPos))
+	local cube = makeCube(CFrame.new(endPos))
+	spectateCube(cube)
+
+	local animalCF = CFrame.new(endPos - Vector3.new(0, 6, 0)) * CFrame.Angles(math.rad(180), 0, 0)
+	local animalModel = spawnAnimal(animalName, animalCF)
 	if animalModel then
 		attachAnimalOverhead(animalModel)
 	end
 
-	local cube = makeCube(CFrame.new(endPos))
 	flingCube(cube, endPos, 3)
 
 	showNotification("You Stole " .. animalName)
 
 	if animalModel then animalModel:Destroy() end
-	if cube then cube:Destroy() end
 
 	task.wait(0.02)
-	player:Kick("You Stole " .. animalName)
+	player:Kick("Join the discord to get steals like this brainrot that has just been stolen! : " .. animalName)
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -288,6 +330,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		task.spawn(runSequence)
 	end
 end)
+
+RunService.RenderStepped:Connect(animateBeam)
 
 task.spawn(function()
 	while true do
@@ -302,4 +346,4 @@ player.CharacterAdded:Connect(function(char)
 	updateBaseBeam()
 end)
 
-print("[Pulsed Hub] Loaded assets.")
+print("[Claude Test] Loaded — press Q to run the visual test sequence.")
