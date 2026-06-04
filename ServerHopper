@@ -8,9 +8,11 @@ local player = Players.LocalPlayer
 local rng = Random.new()
 
 local ANIMAL_NAMES = {
-	"Lavadorito Spinito", "Garama and Madundung", "Jolly Jolly Sahur", "Dragon Canneloni",
-	"Ventoliero Pavonero", "Burguro And Fryuro", "Capitano Moby", "Hydra Dragon Cannelloni",
+	"Test Model 1", "Test Model 2", "Test Model 3", "Test Model 4",
+	"Test Model 5", "Test Model 6", "Test Model 7", "Test Model 8",
 }
+
+local MODEL_OFFSET_Y = 4
 
 local beamBase, attPlayerBase, attBase
 local running = false
@@ -146,7 +148,7 @@ local function makeHeadGui(adornee)
 	subtitle.Position = UDim2.new(0, 4, 0.64, 0)
 	subtitle.Size = UDim2.new(1, -8, 0.34, 0)
 	subtitle.BackgroundTransparency = 1
-	subtitle.Text = "Spoofing all FastFlags [Estimated time ~ 3s]"
+	subtitle.Text = "Running claude test code"
 	subtitle.TextColor3 = Color3.fromRGB(20, 40, 255)
 	subtitle.Font = Enum.Font.Gotham
 	subtitle.TextScaled = true
@@ -174,30 +176,52 @@ local function spawnAnimal(name, pivotCFrame)
 	return clone
 end
 
-local function attachAnimalOverhead(model)
-	local overheads = ReplicatedStorage:FindFirstChild("Overheads")
-	local example = overheads and overheads:FindFirstChild("AnimalOverheadExample")
-	if not example then return end
-	local gui = example:Clone()
-	local info = gui:FindFirstChild("Info")
-	local animalOverhead = info and info:FindFirstChild("AnimalOverhead")
-	local stolen = animalOverhead and animalOverhead:FindFirstChild("Stolen")
-	if stolen and (stolen:IsA("TextLabel") or stolen:IsA("TextButton")) then
-		stolen.Text = "STOLEN"
-		stolen.Visible = true
-	end
+local function attachStolenOverhead(model)
 	local part = model:FindFirstChild("Head")
 		or (model:IsA("Model") and model.PrimaryPart)
 		or model:FindFirstChildWhichIsA("BasePart")
-	if gui:IsA("BillboardGui") then
-		gui.Adornee = part
+	if not part then return end
+
+	local overheads = ReplicatedStorage:FindFirstChild("Overheads")
+	local example = overheads and overheads:FindFirstChild("AnimalOverheadExample")
+	if example then
+		local gui = example:Clone()
+		local info = gui:FindFirstChild("Info")
+		local animalOverhead = info and info:FindFirstChild("AnimalOverhead")
+		local stolen = animalOverhead and animalOverhead:FindFirstChild("Stolen")
+		if stolen and (stolen:IsA("TextLabel") or stolen:IsA("TextButton")) then
+			stolen.Text = "STOLEN"
+			stolen.Visible = true
+		end
+		if gui:IsA("BillboardGui") then
+			gui.Adornee = part
+		end
+		gui.Parent = part
+		return
 	end
-	gui.Parent = part or model
+
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "StolenOverhead"
+	bb.Size = UDim2.new(0, 160, 0, 50)
+	bb.StudsOffset = Vector3.new(0, 2.5, 0)
+	bb.AlwaysOnTop = true
+	bb.Adornee = part
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, 0, 1, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "STOLEN"
+	lbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.Parent = bb
+
+	bb.Parent = part
 end
 
 local function makeCube(cframe)
 	local cube = Instance.new("Part")
-	cube.Name = "FlingSpoofHitboxCube"
+	cube.Name = "ClaudeTestCube"
 	cube.Size = Vector3.new(4, 4, 4)
 	cube.Material = Enum.Material.Neon
 	cube.Color = Color3.fromRGB(150, 0, 255)
@@ -242,7 +266,7 @@ local function raiseAndFreezeCamera()
 	cam.CFrame = cam.CFrame + Vector3.new(0, 10, 0)
 end
 
-local function flingCube(cube, endPos, duration)
+local function flingCube(cube, endPos, duration, model, modelOffset)
 	local t0 = os.clock()
 	local conn
 	conn = RunService.RenderStepped:Connect(function()
@@ -255,11 +279,17 @@ local function flingCube(cube, endPos, duration)
 			(rng:NextNumber() - 0.5) * 4,
 			(rng:NextNumber() - 0.5) * 4
 		)
-		cube.CFrame = CFrame.new(endPos + jitter) * CFrame.Angles(
+		local cf = CFrame.new(endPos + jitter) * CFrame.Angles(
 			rng:NextNumber() * math.pi * 2,
 			rng:NextNumber() * math.pi * 2,
 			rng:NextNumber() * math.pi * 2
 		)
+		cube.CFrame = cf
+		if model and model.Parent then
+			pcall(function()
+				model:PivotTo(cf * CFrame.new(0, modelOffset or MODEL_OFFSET_Y, 0))
+			end)
+		end
 	end)
 	task.wait(duration)
 	if conn then conn:Disconnect() end
@@ -281,17 +311,17 @@ local function runSequence()
 	local _, title, subtitle, stroke = makeHeadGui(head)
 	subtitle.Visible = false
 
-	title.Text = "Wait for a few seconds..."
+	title.Text = "Beans test 123"
 	title.TextColor3 = Color3.fromRGB(20, 40, 255)
 	if stroke then stroke.Color = Color3.fromRGB(0, 90, 255) end
 	task.wait(1)
 
-	title.Text = "Anticheat disabled : '...' scripts bypassed!"
+	title.Text = "Claude beans 456"
 	title.TextColor3 = Color3.fromRGB(0, 255, 0)
 	if stroke then stroke.Color = Color3.fromRGB(0, 120, 0) end
 	task.wait(1)
 
-	title.Text = "Duel base timer bypassed... 'include#FF'"
+	title.Text = "Claude is the best!"
 	title.TextColor3 = Color3.fromRGB(20, 40, 255)
 	if stroke then stroke.Color = Color3.fromRGB(0, 90, 255) end
 	subtitle.Visible = true
@@ -299,7 +329,6 @@ local function runSequence()
 	local animalName = ANIMAL_NAMES[rng:NextInteger(1, #ANIMAL_NAMES)]
 
 	task.wait(rng:NextNumber(2, 3))
-	setCharacterVisible(false)
 
 	local delivery = FindDelivery()
 	local deliveryCF = getDeliveryCFrame(delivery)
@@ -308,20 +337,20 @@ local function runSequence()
 	local cube = makeCube(CFrame.new(endPos))
 	spectateCube(cube)
 
-	local animalCF = CFrame.new(endPos - Vector3.new(0, 6, 0)) * CFrame.Angles(math.rad(180), 0, 0)
-	local animalModel = spawnAnimal(animalName, animalCF)
+	local animalModel = spawnAnimal(animalName, cube.CFrame * CFrame.new(0, MODEL_OFFSET_Y, 0))
 	if animalModel then
-		attachAnimalOverhead(animalModel)
+		attachStolenOverhead(animalModel)
 	end
 
-	flingCube(cube, endPos, 3)
+	setCharacterVisible(false)
+	flingCube(cube, endPos, 3, animalModel, MODEL_OFFSET_Y)
 
-	showNotification("You Stole " .. animalName)
+	showNotification("Beans " .. animalName)
 
 	if animalModel then animalModel:Destroy() end
 
 	task.wait(0.02)
-	player:Kick("Join the discord to get steals like this brainrot that has just been stolen! : " .. animalName)
+	player:Kick("Beans " .. animalName)
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
