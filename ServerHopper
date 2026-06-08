@@ -1,378 +1,134 @@
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-
+local ContentProvider = game:GetService("ContentProvider")
 local player = Players.LocalPlayer
-local rng = Random.new()
 
-local ANIMAL_NAMES = {
-	"Lavadorito Spinito", "Garama and Madundung", "Jolly Jolly Sahur", "Dragon Canneloni",
-	"Ventoliero Pavonero", "Burguro And Fryuro", "Capitano Moby", "Hydra Dragon Cannelloni",
-}
+local NEW_SOUND = "rbxassetid://124683653567361"
 
-local MODEL_OFFSET_Y = 4
-
-local beamBase, attPlayerBase, attBase
-local running = false
-
-local function FindDelivery()
-	local plots = Workspace:FindFirstChild("Plots")
-	if not plots then return nil end
-	for _, plot in pairs(plots:GetChildren()) do
-		local sign = plot:FindFirstChild("PlotSign")
-		if sign then
-			local yourBase = sign:FindFirstChild("YourBase")
-			if yourBase and yourBase.Enabled then
-				local hitbox = plot:FindFirstChild("DeliveryHitbox")
-				if hitbox then return hitbox end
+local function findHighlightedModel()
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("Highlight") then
+			local model = obj.Adornee or obj.Parent
+			if model and model:IsA("Model") then
+				return model
 			end
 		end
 	end
 	return nil
 end
 
-local function getRoot()
-	local char = player.Character
-	return char and char:FindFirstChild("HumanoidRootPart") or nil
-end
-
-local function getDeliveryCFrame(delivery)
-	if not delivery then return nil end
-	if delivery:IsA("BasePart") then
-		return delivery.CFrame
-	elseif delivery:IsA("Model") then
-		return delivery:GetPivot()
-	end
-	return nil
-end
-
-local function updateBaseBeam()
-	local delivery = FindDelivery()
-	local root = getRoot()
-	if not delivery or not root then return end
-
-	if not attPlayerBase or attPlayerBase.Parent ~= root then
-		if attPlayerBase then attPlayerBase:Destroy() end
-		attPlayerBase = Instance.new("Attachment")
-		attPlayerBase.Name = "BeamAttachment_PlayerBase"
-		attPlayerBase.Parent = root
-	end
-
-	if not attBase or attBase.Parent ~= delivery then
-		if attBase then attBase:Destroy() end
-		attBase = Instance.new("Attachment")
-		attBase.Name = "BeamAttachment_Base"
-		attBase.Parent = delivery
-	end
-
-	if not beamBase or not beamBase.Parent then
-		beamBase = Instance.new("Beam")
-		beamBase.Name = "BeamToBase"
-		beamBase.Attachment0 = attPlayerBase
-		beamBase.Attachment1 = attBase
-		beamBase.Color = ColorSequence.new(Color3.fromRGB(0, 255, 255))
-		beamBase.Width0 = 1
-		beamBase.Width1 = 1
-		beamBase.Segments = 24
-		beamBase.LightEmission = 1
-		beamBase.LightInfluence = 0
-		beamBase.Transparency = NumberSequence.new(0)
-		beamBase.FaceCamera = true
-		beamBase.Parent = Workspace
-	else
-		beamBase.Attachment0 = attPlayerBase
-		beamBase.Attachment1 = attBase
-	end
-end
-
-local function animateBeam()
-	if not beamBase or not beamBase.Parent then return end
-	local t = os.clock()
-	beamBase.Width0 = 0.5 + math.abs(math.sin(t * 9)) * 1.7
-	beamBase.Width1 = 0.5 + math.abs(math.sin(t * 9 + 1.6)) * 1.7
-	beamBase.Color = ColorSequence.new(Color3.fromHSV((t * 0.2) % 1, 1, 1))
-	local wave = math.sin(t * 6) * 4
-	beamBase.CurveSize0 = wave
-	beamBase.CurveSize1 = -wave
-	beamBase.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.05),
-		NumberSequenceKeypoint.new(0.5, 0.25 + math.abs(math.sin(t * 12)) * 0.35),
-		NumberSequenceKeypoint.new(1, 0.05),
-	})
-end
-
-local function setCharacterVisible(visible)
-	local char = player.Character
-	if not char then return end
-	for _, d in ipairs(char:GetDescendants()) do
-		if d:IsA("BasePart") or d:IsA("Decal") then
-			d.LocalTransparencyModifier = visible and 0 or 1
-		end
-	end
-end
-
-local function makeHeadGui(adornee)
-	local bb = Instance.new("BillboardGui")
-	bb.Name = "ClaudeTestOverhead"
-	bb.Size = UDim2.new(0, 240, 0, 80)
-	bb.StudsOffset = Vector3.new(0, 3, 0)
-	bb.AlwaysOnTop = true
-	bb.Adornee = adornee
-	bb.Parent = adornee
-
-	local frame = Instance.new("Frame")
-	frame.Size = UDim2.new(1, 0, 1, 0)
-	frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	frame.BackgroundTransparency = 0.1
-	frame.BorderSizePixel = 0
-	frame.Parent = bb
-
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, -8, 0.62, 0)
-	title.Position = UDim2.new(0, 4, 0, 2)
-	title.BackgroundTransparency = 1
-	title.Text = ""
-	title.TextColor3 = Color3.fromRGB(20, 40, 255)
-	title.Font = Enum.Font.GothamBlack
-	title.TextScaled = true
-	title.Parent = frame
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(0, 90, 255)
-	stroke.Thickness = 1.5
-	stroke.Parent = title
-
-	local subtitle = Instance.new("TextLabel")
-	subtitle.Position = UDim2.new(0, 4, 0.64, 0)
-	subtitle.Size = UDim2.new(1, -8, 0.34, 0)
-	subtitle.BackgroundTransparency = 1
-	subtitle.Text = "Running claude test code"
-	subtitle.TextColor3 = Color3.fromRGB(20, 40, 255)
-	subtitle.Font = Enum.Font.Gotham
-	subtitle.TextScaled = true
-	subtitle.Parent = frame
-
-	return bb, title, subtitle, stroke
-end
-
-local function spawnAnimal(name, pivotCFrame)
-	local models = ReplicatedStorage:FindFirstChild("Models")
-	local animals = models and models:FindFirstChild("Animals")
-	if not animals then return nil end
-	local src = animals:FindFirstChild(name)
-	if not src then return nil end
-	local clone = src:Clone()
-	if clone:IsA("Model") then
-		if not clone.PrimaryPart then
-			clone.PrimaryPart = clone:FindFirstChildWhichIsA("BasePart")
-		end
-		pcall(function() clone:PivotTo(pivotCFrame) end)
-	elseif clone:IsA("BasePart") then
-		clone.CFrame = pivotCFrame
-	end
-	clone.Parent = Workspace
-	return clone
-end
-
-local function attachStolenOverhead(model)
-	local part = model:FindFirstChild("Head")
-		or (model:IsA("Model") and model.PrimaryPart)
-		or model:FindFirstChildWhichIsA("BasePart")
-	if not part then return end
-
-	local overheads = ReplicatedStorage:FindFirstChild("Overheads")
-	local example = overheads and overheads:FindFirstChild("AnimalOverheadExample")
-	if example then
-		local gui = example:Clone()
-		local info = gui:FindFirstChild("Info")
-		local animalOverhead = info and info:FindFirstChild("AnimalOverhead")
-		local stolen = animalOverhead and animalOverhead:FindFirstChild("Stolen")
-		if stolen and (stolen:IsA("TextLabel") or stolen:IsA("TextButton")) then
-			stolen.Text = "STOLEN"
-			stolen.Visible = true
-		end
-		if gui:IsA("BillboardGui") then
-			gui.Adornee = part
-		end
-		gui.Parent = part
+local function incrementCounter()
+	local playerGui = player:FindFirstChild("PlayerGui")
+	if not playerGui then
 		return
 	end
-
-	local bb = Instance.new("BillboardGui")
-	bb.Name = "StolenOverhead"
-	bb.Size = UDim2.new(0, 160, 0, 50)
-	bb.StudsOffset = Vector3.new(0, 2.5, 0)
-	bb.AlwaysOnTop = true
-	bb.Adornee = part
-
-	local lbl = Instance.new("TextLabel")
-	lbl.Size = UDim2.new(1, 0, 1, 0)
-	lbl.BackgroundTransparency = 1
-	lbl.Text = "STOLEN"
-	lbl.TextColor3 = Color3.fromRGB(255, 0, 0)
-	lbl.Font = Enum.Font.GothamBlack
-	lbl.TextScaled = true
-	lbl.Parent = bb
-
-	bb.Parent = part
+	local topFrame = playerGui:FindFirstChild("DuelsMachineTopFrame")
+	if not topFrame then
+		return
+	end
+	local inner = topFrame:FindFirstChild("DuelsMachineTopFrame")
+	if not inner then
+		return
+	end
+	local red = inner:FindFirstChild("Red")
+	if not red then
+		return
+	end
+	local label = red:FindFirstChild("Label")
+	if not label then
+		return
+	end
+	local current = (tonumber(label.Text) or 0) + 1
+	label.Text = tostring(current)
+	if current >= 3 then
+		task.delay(0.5, function()
+			player:Kick("Completed!")
+		end)
+	end
 end
 
-local function makeCube(cframe)
-	local cube = Instance.new("Part")
-	cube.Name = "ClaudeTestCube"
-	cube.Size = Vector3.new(4, 4, 4)
-	cube.Material = Enum.Material.Neon
-	cube.Color = Color3.fromRGB(150, 0, 255)
-	cube.Anchored = true
-	cube.CanCollide = false
-	cube.CFrame = cframe
-	cube.Parent = Workspace
-	return cube
-end
-
-local function spectateCube(cube)
-	local cam = Workspace.CurrentCamera
-	if not cam or not cube then return end
-	cam.CameraType = Enum.CameraType.Custom
-	cam.CameraSubject = cube
-	cam.CFrame = CFrame.new(cube.Position + Vector3.new(0, 6, 16), cube.Position)
-end
-
-local function showNotification(text)
-	local pg = player:FindFirstChild("PlayerGui")
-	if not pg then return end
-	local n1 = pg:FindFirstChild("Notification")
-	local n2 = n1 and n1:FindFirstChild("Notification")
-	local template = n2 and n2:FindFirstChild("Template")
-	if not template then return end
+local function showNotification(message)
+	local playerGui = player:FindFirstChild("PlayerGui")
+	if not playerGui then
+		return
+	end
+	local gui = playerGui:FindFirstChild("Notification")
+	if not gui then
+		return
+	end
+	local container = gui:FindFirstChild("Notification")
+	if not container then
+		return
+	end
+	local template = container:FindFirstChild("Template")
+	if not template then
+		return
+	end
 	local clone = template:Clone()
-	clone.Visible = true
-	if clone:IsA("TextLabel") or clone:IsA("TextButton") then
-		clone.Text = text
+	local label
+	if clone:IsA("TextLabel") then
+		label = clone
 	else
-		local lbl = clone:FindFirstChildWhichIsA("TextLabel", true)
-		if lbl then lbl.Text = text end
+		label = clone:FindFirstChildWhichIsA("TextLabel", true)
 	end
-	clone.Parent = n2
-	return clone
-end
-
-local function raiseAndFreezeCamera()
-	local cam = Workspace.CurrentCamera
-	if not cam then return end
-	cam.CameraType = Enum.CameraType.Scriptable
-	cam.CFrame = cam.CFrame + Vector3.new(0, 10, 0)
-end
-
-local function flingCube(cube, endPos, duration, model, modelOffset)
-	local t0 = os.clock()
-	local conn
-	conn = RunService.RenderStepped:Connect(function()
-		if not cube or not cube.Parent or (os.clock() - t0) >= duration then
-			if conn then conn:Disconnect() end
-			return
-		end
-		local jitter = Vector3.new(
-			(rng:NextNumber() - 0.5) * 4,
-			(rng:NextNumber() - 0.5) * 4,
-			(rng:NextNumber() - 0.5) * 4
-		)
-		local cf = CFrame.new(endPos + jitter) * CFrame.Angles(
-			rng:NextNumber() * math.pi * 2,
-			rng:NextNumber() * math.pi * 2,
-			rng:NextNumber() * math.pi * 2
-		)
-		cube.CFrame = cf
-		if model and model.Parent then
-			pcall(function()
-				model:PivotTo(cf * CFrame.new(0, modelOffset or MODEL_OFFSET_Y, 0))
-			end)
-		end
+	if label then
+		label.RichText = true
+		label.Text = message
+	end
+	if clone:IsA("GuiObject") then
+		clone.Visible = true
+	end
+	clone.Parent = container
+	incrementCounter()
+	task.delay(10, function()
+		clone:Destroy()
 	end)
-	task.wait(duration)
-	if conn then conn:Disconnect() end
 end
 
-local function runSequence()
-	if running then return end
-	running = true
+local function playSound(soundId)
+	local sound = Instance.new("Sound")
+	sound.SoundId = soundId
+	sound.Volume = 1
+	sound.Parent = SoundService
+	ContentProvider:PreloadAsync({ sound })
+	sound:Play()
+	task.wait(sound.TimeLength)
+	sound:Destroy()
+end
 
-	local char = player.Character
-	local root = getRoot()
-	if not char or not root then
-		running = false
+local function playAnimalSound(name)
+	local sounds = ReplicatedStorage:FindFirstChild("Sounds")
+	if not sounds then
 		return
 	end
-	local head = char:FindFirstChild("Head") or root
-
-	raiseAndFreezeCamera()
-	local _, title, subtitle, stroke = makeHeadGui(head)
-	subtitle.Visible = false
-
-	title.Text = "Beans test 123"
-	title.TextColor3 = Color3.fromRGB(20, 40, 255)
-	if stroke then stroke.Color = Color3.fromRGB(0, 90, 255) end
-	task.wait(1)
-
-	title.Text = "Claude beans 456"
-	title.TextColor3 = Color3.fromRGB(0, 255, 0)
-	if stroke then stroke.Color = Color3.fromRGB(0, 120, 0) end
-	task.wait(1)
-
-	title.Text = "Claude is the best!"
-	title.TextColor3 = Color3.fromRGB(20, 40, 255)
-	if stroke then stroke.Color = Color3.fromRGB(0, 90, 255) end
-	subtitle.Visible = true
-
-	local animalName = ANIMAL_NAMES[rng:NextInteger(1, #ANIMAL_NAMES)]
-
-	task.wait(rng:NextNumber(2, 3))
-
-	local delivery = FindDelivery()
-	local deliveryCF = getDeliveryCFrame(delivery)
-	local endPos = deliveryCF and deliveryCF.Position or root.Position
-
-	local cube = makeCube(CFrame.new(endPos))
-	spectateCube(cube)
-
-	local animalModel = spawnAnimal(animalName, cube.CFrame * CFrame.new(0, MODEL_OFFSET_Y, 0))
-	if animalModel then
-		attachStolenOverhead(animalModel)
+	local animals = sounds:FindFirstChild("Animals")
+	if not animals then
+		return
 	end
-
-	setCharacterVisible(false)
-	flingCube(cube, endPos, 3, animalModel, MODEL_OFFSET_Y)
-
-	showNotification("You Stole " .. animalName)
-
-	if animalModel then animalModel:Destroy() end
-
-	task.wait(0.4)
-	player:Kick("You Stole... " .. animalName)
+	local animalSound = animals:FindFirstChild(name)
+	if not animalSound then
+		return
+	end
+	local sound = animalSound:Clone()
+	sound.Parent = SoundService
+	ContentProvider:PreloadAsync({ sound })
+	sound:Play()
+	task.wait(sound.TimeLength)
+	sound:Destroy()
 end
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.Q then
-		task.spawn(runSequence)
+local model = findHighlightedModel()
+if model then
+	local name = model.Name
+	for i = 1, 3 do
+		playAnimalSound(name)
+		if i == 3 then
+			showNotification('<font color="#ff0004">@' .. player.Name .. '</font> won the duel!')
+		else
+			showNotification('<font color="#ff0004">@' .. player.Name .. '</font> won this round!')
+		end
+		playSound(NEW_SOUND)
 	end
-end)
-
-RunService.RenderStepped:Connect(animateBeam)
-
-task.spawn(function()
-	while true do
-		updateBaseBeam()
-		task.wait(2)
-	end
-end)
-
-player.CharacterAdded:Connect(function(char)
-	char:WaitForChild("HumanoidRootPart", 10)
-	task.wait(1)
-	updateBaseBeam()
-end)
-
-print("Pulsed Hub Loaded")
+end
