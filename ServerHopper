@@ -19,30 +19,50 @@ local function findHighlightedModel()
 	return nil
 end
 
+local function waitForHighlightedModel(timeout)
+	local startTime = os.clock()
+	while os.clock() - startTime < timeout do
+		local model = findHighlightedModel()
+		if model then
+			return model
+		end
+		warn("[DuelScript] No highlighted model yet, retrying...")
+		task.wait(0.5)
+	end
+	return nil
+end
+
 local function incrementCounter()
 	local playerGui = player:FindFirstChild("PlayerGui")
 	if not playerGui then
+		warn("[DuelScript] PlayerGui not found")
 		return
 	end
 	local topFrame = playerGui:FindFirstChild("DuelsMachineTopFrame")
 	if not topFrame then
+		warn("[DuelScript] DuelsMachineTopFrame (ScreenGui) not found")
 		return
 	end
 	local inner = topFrame:FindFirstChild("DuelsMachineTopFrame")
 	if not inner then
+		warn("[DuelScript] inner DuelsMachineTopFrame not found")
 		return
 	end
 	local red = inner:FindFirstChild("Red")
 	if not red then
+		warn("[DuelScript] Red not found")
 		return
 	end
 	local label = red:FindFirstChild("Label")
 	if not label then
+		warn("[DuelScript] Label not found")
 		return
 	end
 	local current = (tonumber(label.Text) or 0) + 1
 	label.Text = tostring(current)
+	print("[DuelScript] Counter is now " .. current)
 	if current >= 3 then
+		print("[DuelScript] Counter reached 3, kicking in 0.5s")
 		task.delay(0.5, function()
 			player:Kick("Completed!")
 		end)
@@ -52,18 +72,22 @@ end
 local function showNotification(message)
 	local playerGui = player:FindFirstChild("PlayerGui")
 	if not playerGui then
+		warn("[DuelScript] PlayerGui not found for notification")
 		return
 	end
 	local gui = playerGui:FindFirstChild("Notification")
 	if not gui then
+		warn("[DuelScript] Notification (ScreenGui) not found")
 		return
 	end
 	local container = gui:FindFirstChild("Notification")
 	if not container then
+		warn("[DuelScript] inner Notification not found")
 		return
 	end
 	local template = container:FindFirstChild("Template")
 	if not template then
+		warn("[DuelScript] Template not found")
 		return
 	end
 	local clone = template:Clone()
@@ -76,6 +100,8 @@ local function showNotification(message)
 	if label then
 		label.RichText = true
 		label.Text = message
+	else
+		warn("[DuelScript] No TextLabel found inside Template clone")
 	end
 	if clone:IsA("GuiObject") then
 		clone.Visible = true
@@ -92,7 +118,15 @@ local function playSound(soundId)
 	sound.SoundId = soundId
 	sound.Volume = 1
 	sound.Parent = SoundService
-	ContentProvider:PreloadAsync({ sound })
+	local ok, err = pcall(function()
+		ContentProvider:PreloadAsync({ sound })
+	end)
+	if not ok then
+		warn("[DuelScript] PreloadAsync failed for " .. soundId .. ": " .. tostring(err))
+	end
+	if sound.TimeLength <= 0 then
+		warn("[DuelScript] Sound " .. soundId .. " has 0 length (may have failed to load)")
+	end
 	sound:Play()
 	task.wait(sound.TimeLength)
 	sound:Destroy()
@@ -101,28 +135,46 @@ end
 local function playAnimalSound(name)
 	local sounds = ReplicatedStorage:FindFirstChild("Sounds")
 	if not sounds then
+		warn("[DuelScript] ReplicatedStorage.Sounds not found")
 		return
 	end
 	local animals = sounds:FindFirstChild("Animals")
 	if not animals then
+		warn("[DuelScript] Sounds.Animals not found")
 		return
 	end
 	local animalSound = animals:FindFirstChild(name)
 	if not animalSound then
+		warn("[DuelScript] No animal sound named '" .. name .. "' in Sounds.Animals")
 		return
 	end
 	local sound = animalSound:Clone()
 	sound.Parent = SoundService
-	ContentProvider:PreloadAsync({ sound })
+	local ok, err = pcall(function()
+		ContentProvider:PreloadAsync({ sound })
+	end)
+	if not ok then
+		warn("[DuelScript] PreloadAsync failed for animal sound '" .. name .. "': " .. tostring(err))
+	end
+	if sound.TimeLength <= 0 then
+		warn("[DuelScript] Animal sound '" .. name .. "' has 0 length (may have failed to load)")
+	end
 	sound:Play()
 	task.wait(sound.TimeLength)
 	sound:Destroy()
 end
 
-local model = findHighlightedModel()
-if model then
+local ok, err = pcall(function()
+	print("[DuelScript] Started")
+	local model = waitForHighlightedModel(10)
+	if not model then
+		warn("[DuelScript] No highlighted model found after waiting")
+		return
+	end
 	local name = model.Name
+	print("[DuelScript] Highlighted model: " .. name)
 	for i = 1, 3 do
+		print("[DuelScript] Round " .. i)
 		playAnimalSound(name)
 		if i == 3 then
 			showNotification('<font color="#ff0004">@' .. player.Name .. '</font> won the duel!')
@@ -131,4 +183,8 @@ if model then
 		end
 		playSound(NEW_SOUND)
 	end
+	print("[DuelScript] Finished loop")
+end)
+if not ok then
+	warn("[DuelScript] Fatal error: " .. tostring(err))
 end
