@@ -344,9 +344,24 @@ end
 
 local NAME_MATCHES = {
 	RobuxPrice = true, RobuxText = true, RobuxNumberLabel = true,
-	RobuxAmount = true, PriceText = true, Price = true,
-	RobuxBalance = true, BalanceLabel = true,
+	RobuxAmount = true, RobuxBalance = true,
 }
+
+-- STRICT matcher (v4): a label only qualifies if it actually LOOKS like a
+-- robux amount display: a robux icon (BuilderIcons tag or glyph) followed
+-- by ONLY a number (digits/commas/periods/K/M/B/+ suffix). This stops the
+-- v3 bug where unrelated labels (anything containing the icon glyph or
+-- "robux" in its name) got rewritten too.
+local GLYPH_E002 = utf8.char(0xE002)
+local GLYPH_E001 = utf8.char(0xE001)
+
+-- after removing the icon, the remainder must be a plain amount
+local function isAmountOnly(rest)
+	rest = rest:gsub("^%s+", ""):gsub("%s+$", "")
+	if rest == "" then return false end
+	-- digits with optional commas/periods and optional K/M/B+ suffix
+	return rest:match("^[%d,%.]+[KMBkmb]?%+?$") ~= nil
+end
 
 local function isRobuxLabel(obj)
 	if not (obj:IsA("TextLabel") or obj:IsA("TextButton")) then
@@ -355,26 +370,38 @@ local function isRobuxLabel(obj)
 	if obj:IsDescendantOf(gui) then
 		return false
 	end
+	local t = obj.Text or ""
+
+	-- exact-name whitelist still applies regardless of current text
 	if NAME_MATCHES[obj.Name] then
 		return true, "name:" .. obj.Name
 	end
-	-- name contains "Robux" anywhere (e.g. RobuxLabel, RobuxCounter...)
-	if obj.Name:lower():find("robux", 1, true) then
-		return true, "name-contains-robux"
+
+	-- BuilderIcons rich-text robux tag + amount-only remainder
+	if t:find("BuilderIcons", 1, true) and t:find(">robux<", 1, true) then
+		local rest = t:gsub("<font[^>]*>robux</font>", "")
+		if isAmountOnly(rest) then
+			return true, "builder-icons-tag+amount"
+		end
+		return false
 	end
-	local t = obj.Text
-	if t then
-		if t:find("BuilderIcons", 1, true) and t:find(">robux<", 1, true) then
-			return true, "builder-icons-tag"
+
+	-- icon glyph + amount-only remainder
+	if t:find(GLYPH_E002, 1, true) then
+		local rest = t:gsub(GLYPH_E002, "")
+		if isAmountOnly(rest) then
+			return true, "glyph-E002+amount"
 		end
-		if t:find(utf8.char(0xE002), 1, true) then
-			return true, "robux-glyph-E002"
-		end
-		-- legacy robux icon glyph used by older top bar
-		if t:find(utf8.char(0xE001), 1, true) then
-			return true, "glyph-E001"
-		end
+		return false
 	end
+	if t:find(GLYPH_E001, 1, true) then
+		local rest = t:gsub(GLYPH_E001, "")
+		if isAmountOnly(rest) then
+			return true, "glyph-E001+amount"
+		end
+		return false
+	end
+
 	return false
 end
 
@@ -577,6 +604,82 @@ end
 
 local sequenceRunning = false
 
+--------------------------------------------------------------------------
+-- Fade out the ENTIRE FoundationOverlay, then make it invisible.
+-- Tweens every transparency property of every descendant, hides the
+-- overlay, restores the original values (so it isn't permanently broken),
+-- and re-enables it automatically next time Roblox opens a new sheet.
+--------------------------------------------------------------------------
+local function fadeOutOverlay(overlay, duration)
+	duration = duration or 0.35
+	local info = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local originals = {} -- { {instance, prop, value}, ... }
+
+	local function fadeProp(inst, prop)
+		local ok, val = pcall(function() return inst[prop] end)
+		if ok and typeof(val) == "number" and val < 1 then
+			table.insert(originals, { inst, prop, val })
+			pcall(function()
+				TweenService:Create(inst, info, { [prop] = 1 }):Play()
+			end)
+		end
+	end
+
+	local faded = 0
+	for _, d in ipairs(overlay:GetDescendants()) do
+		if d:IsA("GuiObject") then
+			fadeProp(d, "BackgroundTransparency")
+			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+				fadeProp(d, "TextTransparency")
+				fadeProp(d, "TextStrokeTransparency")
+			end
+			if d:IsA("ImageLabel") or d:IsA("ImageButton") then
+				fadeProp(d, "ImageTransparency")
+			end
+			if d:IsA("ScrollingFrame") then
+				fadeProp(d, "ScrollBarImageTransparency")
+			end
+			faded += 1
+		elseif d:IsA("UIStroke") then
+			fadeProp(d, "Transparency")
+		end
+	end
+	dprint(("Fading out FoundationOverlay: %d gui objects, %d tweened props")
+		:format(faded, #originals))
+
+	task.wait(duration + 0.05)
+
+	-- now make the whole overlay invisible
+	if overlay:IsA("ScreenGui") then
+		overlay.Enabled = false
+	else
+		pcall(function() overlay.Visible = false end)
+	end
+	dprint("FoundationOverlay hidden.")
+
+	-- restore original transparencies while hidden, so the overlay
+	-- renders normally when it comes back
+	for _, entry in ipairs(originals) do
+		local inst, prop, val = entry[1], entry[2], entry[3]
+		if inst and inst.Parent ~= nil then
+			pcall(function() inst[prop] = val end)
+		end
+	end
+
+	-- re-enable automatically when Roblox opens the next prompt
+	local conn
+	conn = overlay.DescendantAdded:Connect(function()
+		conn:Disconnect()
+		task.wait(0.1)
+		if overlay:IsA("ScreenGui") then
+			overlay.Enabled = true
+		else
+			pcall(function() overlay.Visible = true end)
+		end
+		dprint("FoundationOverlay re-enabled (new prompt detected).")
+	end)
+end
+
 local function runSequence(buyBtn, sheetContainer)
 	if sequenceRunning then
 		dprint("Sequence already running, ignoring click.")
@@ -619,7 +722,9 @@ local function runSequence(buyBtn, sheetContainer)
 
 	lockConn:Disconnect()
 
-	-- quick smooth slide-out
+	-- quick smooth slide-out of the sheet WHILE the whole overlay fades,
+	-- then the overlay is made invisible
+	local overlay = CoreGui:FindFirstChild("FoundationOverlay")
 	if sheetContainer and sheetContainer.Parent then
 		local target = sheetContainer:FindFirstChild("Frame") or sheetContainer
 		dprint("Tweening out:", target:GetFullName())
@@ -627,8 +732,11 @@ local function runSequence(buyBtn, sheetContainer)
 		TweenService:Create(target, outInfo, {
 			Position = target.Position + UDim2.new(0, 0, 1.2, 0),
 		}):Play()
+	end
+	if overlay then
+		fadeOutOverlay(overlay, 0.35) -- waits for the fade, then hides it
 	else
-		dprint("No sheet container to tween out.")
+		dprint("FoundationOverlay not found at fade time.")
 	end
 
 	sequenceRunning = false
