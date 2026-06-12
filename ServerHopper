@@ -5,28 +5,61 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ContentProvider = game:GetService("ContentProvider")
 local player = Players.LocalPlayer
 
-local NEW_SOUND = "rbxassetid://124683653567361"
+local ROUND_SOUND = "rbxassetid://96473103988929"
+local DUEL_SOUND = "rbxassetid://124683653567361"
 
-local function findHighlightedModel()
-	for _, obj in ipairs(Workspace:GetDescendants()) do
-		if obj:IsA("Highlight") then
-			local model = obj.Adornee or obj.Parent
-			if model and model:IsA("Model") then
-				return model
+local function findDeliveryHitbox()
+	local plots = Workspace:FindFirstChild("Plots")
+	if not plots then
+		return nil
+	end
+	for _, plot in ipairs(plots:GetChildren()) do
+		local plotSign = plot:FindFirstChild("PlotSign")
+		if plotSign then
+			local yourBase = plotSign:FindFirstChild("YourBase")
+			if yourBase and yourBase.Enabled then
+				return plot:FindFirstChild("DeliveryHitbox")
 			end
 		end
 	end
 	return nil
 end
 
-local function waitForHighlightedModel(timeout)
+local function findTargetModel()
+	local deliveryHitbox = findDeliveryHitbox()
+	if not deliveryHitbox then
+		warn("[DuelScript] Your DeliveryHitbox / plot not found")
+		return nil
+	end
+	local myPlot = deliveryHitbox.Parent
+	local plots = Workspace:FindFirstChild("Plots")
+	if not myPlot or not plots then
+		warn("[DuelScript] Plots not found")
+		return nil
+	end
+	for _, plot in ipairs(plots:GetChildren()) do
+		if plot ~= myPlot then
+			for _, obj in ipairs(plot:GetChildren()) do
+				if obj:IsA("Model") and obj.Name ~= "CashPad" and obj.Name ~= "FriendPanel" then
+					local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+					if part then
+						return obj
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function waitForTargetModel(timeout)
 	local startTime = os.clock()
 	while os.clock() - startTime < timeout do
-		local model = findHighlightedModel()
+		local model = findTargetModel()
 		if model then
 			return model
 		end
-		warn("[DuelScript] No highlighted model yet, retrying...")
+		warn("[DuelScript] No target model yet, retrying...")
 		task.wait(0.5)
 	end
 	return nil
@@ -166,22 +199,23 @@ end
 
 local ok, err = pcall(function()
 	print("[DuelScript] Started")
-	local model = waitForHighlightedModel(10)
+	local model = waitForTargetModel(10)
 	if not model then
-		warn("[DuelScript] No highlighted model found after waiting")
+		warn("[DuelScript] No target model found after waiting")
 		return
 	end
 	local name = model.Name
-	print("[DuelScript] Highlighted model: " .. name)
+	print("[DuelScript] Target model: " .. name)
 	for i = 1, 3 do
 		print("[DuelScript] Round " .. i)
-		playAnimalSound(name)
 		if i == 3 then
+			playSound(DUEL_SOUND)
 			showNotification('<font color="#ff0004">@' .. player.Name .. '</font> won the duel!')
 		else
+			playSound(ROUND_SOUND)
 			showNotification('<font color="#ff0004">@' .. player.Name .. '</font> won this round!')
 		end
-		playSound(NEW_SOUND)
+		playAnimalSound(name)
 	end
 	print("[DuelScript] Finished loop")
 end)
